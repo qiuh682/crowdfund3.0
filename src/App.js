@@ -1,22 +1,17 @@
-import logo from './logo.svg';
 import './App.css';
 
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1>🚀 CrowdFund3.0</h1>
+        <p>我的第一个React应用！</p>
+        <p>当前状态: 开发中...</p>
+
+        {/* 新增按钮 */}
+        <button onClick={() => alert('Hello Web3! 🚀')}>
+          点击体验
+        </button>
       </header>
     </div>
   );
