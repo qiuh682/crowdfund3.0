@@ -1,70 +1,219 @@
-# Getting Started with Create React App
+# OpenCure - Decentralized Rare Disease Research Funding
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A blockchain-based crowdfunding platform for accelerating rare disease research through transparent, milestone-based fund management.
 
-## Available Scripts
+## Overview
 
-In the project directory, you can run:
+OpenCure connects patients, scientists, and donors to fund critical rare disease research. Using smart contracts, donations are held in escrow and released only when research milestones are achieved - ensuring transparency and accountability.
 
-### `npm start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Milestone-Based Funding**: Funds released incrementally as research goals are met
+- **Transparent Tracking**: All donations and releases recorded on blockchain
+- **USDC Payments**: Stable cryptocurrency eliminates volatility risk
+- **Owner Controls**: Project owners manage milestones and fund releases
+- **Real-time Updates**: Live funding progress and milestone status
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Project Structure
 
-### `npm test`
+```
+my-crowdfund/
+├── hardhat-contracts/          # Smart contracts
+│   ├── contracts/
+│   │   └── core/
+│   │       ├── OpenCureEscrow.sol    # Main escrow contract
+│   │       └── OpenCureV1.sol        # Advanced version with voting
+│   ├── scripts/
+│   │   └── deploy-mainnet.js         # Mainnet deployment script
+│   └── test/
+│       └── OpenCureEscrow.test.js    # Comprehensive tests
+│
+├── opencure-frontend/          # React frontend
+│   ├── src/
+│   │   ├── components/         # Reusable UI components
+│   │   ├── pages/              # Page components
+│   │   ├── hooks/              # Custom React hooks
+│   │   ├── context/            # React Context (Web3)
+│   │   └── utils/              # Utilities and configs
+│   └── public/
+│
+└── OPENCURE_30DAY_COMPLETE_GUIDE.md  # Learning guide
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Quick Start
 
-### `npm run build`
+### Prerequisites
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- Node.js v18+
+- MetaMask wallet
+- Sepolia testnet ETH (for testing)
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Installation
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+# Clone repository
+git clone https://github.com/your-username/opencure.git
+cd opencure
 
-### `npm run eject`
+# Install contract dependencies
+cd hardhat-contracts
+npm install
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Install frontend dependencies
+cd ../opencure-frontend
+npm install
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Running Locally
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+# Terminal 1: Start local blockchain
+cd hardhat-contracts
+npx hardhat node
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Terminal 2: Deploy contracts
+npx hardhat run scripts/deploy.js --network localhost
 
-## Learn More
+# Terminal 3: Start frontend
+cd opencure-frontend
+npm start
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Running Tests
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+cd hardhat-contracts
+npx hardhat test
 
-### Code Splitting
+# With gas reporting
+REPORT_GAS=true npx hardhat test
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Smart Contract Architecture
 
-### Analyzing the Bundle Size
+### OpenCureEscrow.sol
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The main escrow contract managing:
 
-### Making a Progressive Web App
+- **Donations**: Accept USDC donations from supporters
+- **Milestones**: Define and track research milestones
+- **Fund Release**: Release funds to scientist upon milestone completion
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```solidity
+// Key functions
+function donate(uint256 amount) external;
+function addMilestone(string description, uint256 amount) external;
+function completeMilestone(uint256 milestoneId) external;
+function releaseFunds(uint256 milestoneId) external;
+```
 
-### Advanced Configuration
+### Security Features
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- Owner-only administrative functions
+- Milestone completion verification before release
+- Balance checks before transfers
+- Event logging for transparency
 
-### Deployment
+## Frontend Pages
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+| Page | URL | Description |
+|------|-----|-------------|
+| Home | `/` | Landing page with project overview |
+| Projects | `/projects` | List of research projects |
+| Project Detail | `/projects/:id` | Individual project with donation |
+| Dashboard | `/dashboard` | User stats and owner management |
+| Create Project | `/create` | Project creation wizard |
+| Deployment Guide | `/deploy` | Mainnet deployment checklist |
 
-### `npm run build` fails to minify
+## Deployment
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### Testnet (Sepolia)
+
+```bash
+cd hardhat-contracts
+cp .env.example .env
+# Edit .env with your keys
+npx hardhat run scripts/deploy.js --network sepolia
+```
+
+### Mainnet
+
+```bash
+# Run pre-deployment checks
+npx hardhat test
+
+# Deploy (requires confirmation)
+CONFIRM_DEPLOY=true npx hardhat run scripts/deploy-mainnet.js --network mainnet
+```
+
+See `/deploy` page in frontend for complete checklist.
+
+## Environment Variables
+
+### Contract (.env)
+
+```env
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR-KEY
+MAINNET_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR-KEY
+PRIVATE_KEY=your_private_key
+ETHERSCAN_API_KEY=your_etherscan_key
+SCIENTIST_ADDRESS=0x...
+GOAL_AMOUNT=100000
+```
+
+### Frontend (.env.local)
+
+```env
+REACT_APP_NETWORK=sepolia
+REACT_APP_ESCROW_ADDRESS=0x...
+REACT_APP_USDC_ADDRESS=0x...
+```
+
+## Tech Stack
+
+- **Smart Contracts**: Solidity 0.8.20, Hardhat
+- **Frontend**: React 18, ethers.js v6
+- **Styling**: CSS-in-JS
+- **Charts**: Recharts
+- **Notifications**: react-hot-toast
+
+## Contract Addresses
+
+### Sepolia Testnet
+
+- Escrow: `0xF0A7b71FB5f28a702A2B8d485390117cE229beA2`
+- Mock USDC: `0x8410f9Cf462C4dCc9Fb97971fe65F8D711Fa3F96`
+
+### Ethereum Mainnet
+
+- USDC: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- Escrow: (Deploy using deploy-mainnet.js)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
+
+## Security
+
+- Never commit private keys or .env files
+- Always test on testnet before mainnet
+- Have contracts audited before significant deployment
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Resources
+
+- [Solidity Documentation](https://docs.soliditylang.org)
+- [Hardhat Documentation](https://hardhat.org/docs)
+- [Ethers.js Documentation](https://docs.ethers.org)
+- [React Documentation](https://react.dev)
+
+---
+
+Built with care for the rare disease community.
