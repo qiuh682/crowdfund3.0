@@ -1,7 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
 
 const Web3Context = createContext();
+
+// Default RPC URL for read-only operations (Sepolia testnet)
+const DEFAULT_RPC_URL = 'https://rpc.sepolia.org';
 
 export const useWeb3 = () => {
   const context = useContext(Web3Context);
@@ -13,8 +16,21 @@ export const useWeb3 = () => {
 
 export function Web3Provider({ children }) {
   const [account, setAccount] = useState(null);
-  const [provider, setProvider] = useState(null);
+  const [walletProvider, setWalletProvider] = useState(null);
   const [signer, setSigner] = useState(null);
+
+  // Create a read-only provider that always works (doesn't require wallet)
+  const readOnlyProvider = useMemo(() => {
+    try {
+      return new ethers.JsonRpcProvider(DEFAULT_RPC_URL);
+    } catch (error) {
+      console.error('Failed to create read-only provider:', error);
+      return null;
+    }
+  }, []);
+
+  // Use wallet provider if connected, otherwise use read-only provider
+  const provider = walletProvider || readOnlyProvider;
 
   // 连接钱包
   const connectWallet = async () => {
@@ -30,12 +46,12 @@ export function Web3Provider({ children }) {
       });
 
       // 创建provider
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const walletSigner = await browserProvider.getSigner();
 
       setAccount(accounts[0]);
-      setProvider(provider);
-      setSigner(signer);
+      setWalletProvider(browserProvider);
+      setSigner(walletSigner);
 
       console.log('Connected:', accounts[0]);
     } catch (error) {
@@ -46,15 +62,41 @@ export function Web3Provider({ children }) {
   // 监听账户切换
   useEffect(() => {
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts) => {
+      const handleAccountsChanged = (accounts) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
+          // Re-create provider and signer
+          const browserProvider = new ethers.BrowserProvider(window.ethereum);
+          setWalletProvider(browserProvider);
+          browserProvider.getSigner().then(setSigner).catch(console.error);
         } else {
           setAccount(null);
-          setProvider(null);
+          setWalletProvider(null);
           setSigner(null);
         }
-      });
+      };
+
+      const handleChainChanged = () => {
+        // Reload the page on chain change for safety
+        window.location.reload();
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      // Check if already connected
+      window.ethereum.request({ method: 'eth_accounts' })
+        .then(accounts => {
+          if (accounts.length > 0) {
+            handleAccountsChanged(accounts);
+          }
+        })
+        .catch(console.error);
+
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      };
     }
   }, []);
 
@@ -63,7 +105,8 @@ export function Web3Provider({ children }) {
     provider,
     signer,
     connectWallet,
-    isConnected: !!account
+    isConnected: !!account,
+    hasWallet: !!window.ethereum
   };
 
   return (

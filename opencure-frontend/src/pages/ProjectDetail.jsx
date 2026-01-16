@@ -1,6 +1,5 @@
 import { useParams } from 'react-router-dom';
 import { useProject } from '../hooks/useProject';
-import { useWeb3 } from '../context/Web3Context';
 import DonationForm from '../components/DonationForm';
 import DonationHistory from '../components/DonationHistory';
 import USDCFaucet from '../components/USDCFaucet';
@@ -10,7 +9,6 @@ import FundingChart from '../components/FundingChart';
 export default function ProjectDetail() {
   const { id } = useParams();
   const { project, donations, loading, error, reload } = useProject(id);
-  const { isConnected } = useWeb3();
 
   // 加载状态
   if (loading) {

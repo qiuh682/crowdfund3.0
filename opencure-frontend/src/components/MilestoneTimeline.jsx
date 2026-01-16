@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../context/Web3Context';
-import { CONTRACTS, ESCROW_ABI } from '../utils/contracts';
+import { useContract } from '../hooks/useContract';
 
 /**
  * MilestoneTimeline - 里程碑时间线组件
@@ -12,7 +12,8 @@ import { CONTRACTS, ESCROW_ABI } from '../utils/contracts';
  * - Released: 资金已释放
  */
 export default function MilestoneTimeline() {
-  const { signer, provider, account } = useWeb3();
+  const { account } = useWeb3();
+  const { getEscrowContractReadOnly, getEscrowContract } = useContract();
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,25 +22,18 @@ export default function MilestoneTimeline() {
   const [actionLoading, setActionLoading] = useState(null);
 
   // 加载里程碑数据
-  useEffect(() => {
-    loadMilestones();
-  }, [provider, account]);
+  const loadMilestones = useCallback(async () => {
+    const contract = getEscrowContractReadOnly();
 
-  const loadMilestones = async () => {
-    if (!provider) {
+    if (!contract) {
       setLoading(false);
+      setError('Unable to connect to blockchain. Please check your connection.');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-
-      const contract = new ethers.Contract(
-        CONTRACTS.ESCROW,
-        ESCROW_ABI,
-        provider
-      );
 
       // 获取里程碑数量
       const count = await contract.milestoneCount();
@@ -61,33 +55,44 @@ export default function MilestoneTimeline() {
       setMilestones(milestoneList);
 
       // 检查是否是owner
-      const owner = await contract.owner();
-      setIsOwner(account && account.toLowerCase() === owner.toLowerCase());
+      try {
+        const owner = await contract.owner();
+        setIsOwner(account && account.toLowerCase() === owner.toLowerCase());
+      } catch {
+        setIsOwner(false);
+      }
 
       // 获取已释放总额
-      const released = await contract.totalReleased();
-      setTotalReleased(Number(ethers.formatUnits(released, 6)));
+      try {
+        const released = await contract.totalReleased();
+        setTotalReleased(Number(ethers.formatUnits(released, 6)));
+      } catch {
+        setTotalReleased(0);
+      }
 
     } catch (err) {
       console.error('Failed to load milestones:', err);
-      setError('Failed to load milestones');
+      setError('Failed to load milestones. The contract may not be deployed on this network.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [getEscrowContractReadOnly, account]);
+
+  // 加载里程碑数据
+  useEffect(() => {
+    loadMilestones();
+  }, [loadMilestones]);
 
   // 标记里程碑完成（仅owner）
   const handleComplete = async (milestoneId) => {
-    if (!signer) return;
+    const contract = getEscrowContract();
+    if (!contract) {
+      alert('Please connect your wallet first');
+      return;
+    }
 
     try {
       setActionLoading(milestoneId);
-      const contract = new ethers.Contract(
-        CONTRACTS.ESCROW,
-        ESCROW_ABI,
-        signer
-      );
-
       const tx = await contract.completeMilestone(milestoneId);
       await tx.wait();
 
@@ -95,7 +100,7 @@ export default function MilestoneTimeline() {
       await loadMilestones();
     } catch (err) {
       console.error('Failed to complete milestone:', err);
-      alert('Failed to complete milestone: ' + err.message);
+      alert('Failed to complete milestone: ' + (err.reason || err.message));
     } finally {
       setActionLoading(null);
     }
@@ -103,16 +108,14 @@ export default function MilestoneTimeline() {
 
   // 释放里程碑资金（仅owner）
   const handleRelease = async (milestoneId) => {
-    if (!signer) return;
+    const contract = getEscrowContract();
+    if (!contract) {
+      alert('Please connect your wallet first');
+      return;
+    }
 
     try {
       setActionLoading(milestoneId);
-      const contract = new ethers.Contract(
-        CONTRACTS.ESCROW,
-        ESCROW_ABI,
-        signer
-      );
-
       const tx = await contract.releaseFunds(milestoneId);
       await tx.wait();
 
@@ -120,7 +123,7 @@ export default function MilestoneTimeline() {
       await loadMilestones();
     } catch (err) {
       console.error('Failed to release funds:', err);
-      alert('Failed to release funds: ' + err.message);
+      alert('Failed to release funds: ' + (err.reason || err.message));
     } finally {
       setActionLoading(null);
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
 import { useWeb3 } from '../context/Web3Context';
@@ -11,7 +11,7 @@ export default function USDCFaucet() {
   const { getUSDCContract } = useContract();
 
   // 获取USDC余额
-  const checkBalance = async () => {
+  const checkBalance = useCallback(async () => {
     try {
       const usdcContract = getUSDCContract();
       if (!usdcContract || !account) return;
@@ -22,7 +22,7 @@ export default function USDCFaucet() {
     } catch (error) {
       console.error('Failed to get balance:', error);
     }
-  };
+  }, [getUSDCContract, account]);
 
   // 铸造测试USDC
   const mintUSDC = async () => {
@@ -63,7 +63,7 @@ export default function USDCFaucet() {
     if (isConnected) {
       checkBalance();
     }
-  }, [isConnected, account]);
+  }, [isConnected, checkBalance]);
 
   if (!isConnected) {
     return null;

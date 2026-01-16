@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../context/Web3Context';
-import { CONTRACTS, ESCROW_ABI, USDC_ABI } from '../utils/contracts';
+import { useContract } from '../hooks/useContract';
+import { CONTRACTS } from '../utils/contracts';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 /**
@@ -10,29 +11,35 @@ import LoadingSpinner from '../components/LoadingSpinner';
  * 显示用户的捐赠记录和项目管理功能
  */
 export default function Dashboard() {
-  const { account, provider, signer, isConnected } = useWeb3();
+  const { account, isConnected } = useWeb3();
+  const { getEscrowContractReadOnly, getUSDCContractReadOnly, getEscrowContract } = useContract();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
 
   // 添加里程碑表单状态
   const [newMilestone, setNewMilestone] = useState({ description: '', amount: '' });
   const [addingMilestone, setAddingMilestone] = useState(false);
 
-  useEffect(() => {
-    if (isConnected && provider) {
-      loadDashboardData();
-    } else {
+  const loadDashboardData = useCallback(async () => {
+    if (!isConnected || !account) {
       setLoading(false);
+      return;
     }
-  }, [isConnected, provider, account]);
 
-  const loadDashboardData = async () => {
+    const escrow = getEscrowContractReadOnly();
+    const usdc = getUSDCContractReadOnly();
+
+    if (!escrow || !usdc) {
+      setLoading(false);
+      setError('Unable to connect to blockchain');
+      return;
+    }
+
     try {
       setLoading(true);
-
-      const escrow = new ethers.Contract(CONTRACTS.ESCROW, ESCROW_ABI, provider);
-      const usdc = new ethers.Contract(CONTRACTS.USDC, USDC_ABI, provider);
+      setError(null);
 
       // 获取项目基本信息
       const [
@@ -86,19 +93,29 @@ export default function Dashboard() {
       setIsOwner(account.toLowerCase() === owner.toLowerCase());
     } catch (err) {
       console.error('Failed to load dashboard:', err);
+      setError('Failed to load data. The contract may not be deployed on this network.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [isConnected, account, getEscrowContractReadOnly, getUSDCContractReadOnly]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   // 添加里程碑
   const handleAddMilestone = async (e) => {
     e.preventDefault();
-    if (!signer || !newMilestone.description || !newMilestone.amount) return;
+    if (!newMilestone.description || !newMilestone.amount) return;
+
+    const escrow = getEscrowContract();
+    if (!escrow) {
+      alert('Please connect your wallet first');
+      return;
+    }
 
     try {
       setAddingMilestone(true);
-      const escrow = new ethers.Contract(CONTRACTS.ESCROW, ESCROW_ABI, signer);
       const amount = ethers.parseUnits(newMilestone.amount, 6);
 
       const tx = await escrow.addMilestone(newMilestone.description, amount);
@@ -109,7 +126,7 @@ export default function Dashboard() {
       alert('Milestone added successfully!');
     } catch (err) {
       console.error('Failed to add milestone:', err);
-      alert('Failed to add milestone: ' + err.message);
+      alert('Failed to add milestone: ' + (err.reason || err.message));
     } finally {
       setAddingMilestone(false);
     }
@@ -136,13 +153,13 @@ export default function Dashboard() {
     );
   }
 
-  // 没有数据
-  if (!data) {
+  // 没有数据或有错误
+  if (!data || error) {
     return (
       <div style={styles.container}>
         <div style={styles.error}>
           <h2>Error Loading Data</h2>
-          <p>Could not load dashboard data. Please try again.</p>
+          <p>{error || 'Could not load dashboard data. Please try again.'}</p>
           <button onClick={loadDashboardData} style={styles.retryBtn}>
             Retry
           </button>
@@ -290,7 +307,6 @@ export default function Dashboard() {
                   <MilestoneManageItem
                     key={m.id}
                     milestone={m}
-                    signer={signer}
                     onUpdate={loadDashboardData}
                   />
                 ))}
@@ -329,34 +345,41 @@ export default function Dashboard() {
 /**
  * 里程碑管理项组件
  */
-function MilestoneManageItem({ milestone, signer, onUpdate }) {
+function MilestoneManageItem({ milestone, onUpdate }) {
+  const { getEscrowContract } = useContract();
   const [loading, setLoading] = useState(false);
 
   const handleComplete = async () => {
-    if (!signer) return;
+    const escrow = getEscrowContract();
+    if (!escrow) {
+      alert('Please connect your wallet first');
+      return;
+    }
     try {
       setLoading(true);
-      const escrow = new ethers.Contract(CONTRACTS.ESCROW, ESCROW_ABI, signer);
       const tx = await escrow.completeMilestone(milestone.id);
       await tx.wait();
       onUpdate();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      alert('Failed: ' + (err.reason || err.message));
     } finally {
       setLoading(false);
     }
   };
 
   const handleRelease = async () => {
-    if (!signer) return;
+    const escrow = getEscrowContract();
+    if (!escrow) {
+      alert('Please connect your wallet first');
+      return;
+    }
     try {
       setLoading(true);
-      const escrow = new ethers.Contract(CONTRACTS.ESCROW, ESCROW_ABI, signer);
       const tx = await escrow.releaseFunds(milestone.id);
       await tx.wait();
       onUpdate();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      alert('Failed: ' + (err.reason || err.message));
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useContract } from './useContract';
 import { ethers } from 'ethers';
 
@@ -7,29 +7,39 @@ export function useProject(projectId) {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const { getEscrowContractReadOnly } = useContract();
 
-  // 加载项目数据
-  useEffect(() => {
-    if (projectId) {
-      loadProject();
+  const loadProject = useCallback(async () => {
+    if (!projectId) {
+      setLoading(false);
+      return;
     }
-  }, [projectId]);
 
-  const loadProject = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const contract = getEscrowContractReadOnly();
       if (!contract) {
-        throw new Error('Contract not available');
+        throw new Error('Unable to connect to blockchain. Please check your connection.');
       }
 
       // 读取项目信息
       const projectData = await contract.projects(projectId);
-      
+
+      // Check if project exists (has a name)
+      if (!projectData.name) {
+        throw new Error('Project not found');
+      }
+
+      // Calculate goal amount safely
+      const goalAmount = Number(ethers.formatUnits(projectData.goalAmount, 6));
+      const raisedAmount = Number(ethers.formatUnits(projectData.raisedAmount, 6));
+      const progressPercentage = goalAmount > 0
+        ? ((raisedAmount / goalAmount) * 100).toFixed(2)
+        : '0.00';
+
       // 转换数据格式
       const formattedProject = {
         id: Number(projectData.id),
@@ -37,28 +47,31 @@ export function useProject(projectId) {
         description: projectData.description,
         diseaseType: projectData.diseaseType,
         creator: projectData.creator,
-        teamMembers: projectData.teamMembers,
-        goalAmount: ethers.formatUnits(projectData.goalAmount, 6), // USDC有6位小数
-        raisedAmount: ethers.formatUnits(projectData.raisedAmount, 6),
+        teamMembers: projectData.teamMembers || [],
+        goalAmount: goalAmount,
+        raisedAmount: raisedAmount,
         status: Number(projectData.status),
         createdAt: Number(projectData.createdAt),
-        // 计算进度百分比
-        progressPercentage: (Number(ethers.formatUnits(projectData.raisedAmount, 6)) / 
-                            Number(ethers.formatUnits(projectData.goalAmount, 6)) * 100).toFixed(2)
+        progressPercentage: progressPercentage
       };
 
       setProject(formattedProject);
 
       // 加载捐赠历史
       await loadDonations(contract, projectId);
-      
+
     } catch (err) {
       console.error('Failed to load project:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to load project');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, getEscrowContractReadOnly]);
+
+  // 加载项目数据
+  useEffect(() => {
+    loadProject();
+  }, [loadProject]);
 
   // 加载捐赠历史
   const loadDonations = async (contract, projectId) => {

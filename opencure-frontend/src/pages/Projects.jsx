@@ -1,54 +1,90 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import ProjectCard from '../components/ProjectCard';
 import EmptyState from '../components/EmptyState';
+import { useContract } from '../hooks/useContract';
 
 export default function Projects() {
   const navigate = useNavigate();
+  const { getEscrowContractReadOnly } = useContract();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [projects, setProjects] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // 模拟10%概率出错（测试用）
-      if (Math.random() < 0.1) {
-        throw new Error('Failed to fetch projects from blockchain');
+      const contract = getEscrowContractReadOnly();
+
+      if (!contract) {
+        throw new Error('Unable to connect to blockchain');
       }
-      
-      setProjects([
-        {
-          id: 1,
-          name: 'DMD Research Project',
-          description: 'Duchenne Muscular Dystrophy gene therapy research',
-          goal: 100000,
-          raised: 45000,
-        },
-        {
-          id: 2,
-          name: 'ALS Treatment Study',
-          description: 'Novel protein targeting for ALS',
-          goal: 150000,
-          raised: 78000,
+
+      // Get project count from contract
+      let projectCount = 0;
+      try {
+        projectCount = Number(await contract.projectCounter());
+      } catch {
+        // Contract might not have projectCounter, use mock data
+        projectCount = 0;
+      }
+
+      const loadedProjects = [];
+
+      // Load each project
+      for (let i = 1; i <= projectCount; i++) {
+        try {
+          const projectData = await contract.projects(i);
+          if (projectData.name) {
+            loadedProjects.push({
+              id: Number(projectData.id),
+              name: projectData.name,
+              description: projectData.description,
+              diseaseType: projectData.diseaseType || 'Research',
+              goal: Number(ethers.formatUnits(projectData.goalAmount, 6)),
+              raised: Number(ethers.formatUnits(projectData.raisedAmount, 6)),
+              status: Number(projectData.status),
+            });
+          }
+        } catch (err) {
+          console.error(`Failed to load project ${i}:`, err);
         }
-      ]);
-      
-      toast.success('Projects loaded successfully!');
-      
+      }
+
+      // If no projects from contract, show demo data
+      if (loadedProjects.length === 0) {
+        loadedProjects.push(
+          {
+            id: 1,
+            name: 'DMD Research Project',
+            description: 'Duchenne Muscular Dystrophy gene therapy research',
+            diseaseType: 'DMD',
+            goal: 100000,
+            raised: 45000,
+            status: 0,
+          },
+          {
+            id: 2,
+            name: 'ALS Treatment Study',
+            description: 'Novel protein targeting for ALS',
+            diseaseType: 'ALS',
+            goal: 150000,
+            raised: 78000,
+            status: 0,
+          }
+        );
+      }
+
+      setProjects(loadedProjects);
+
     } catch (err) {
       console.error('Load error:', err);
       setError(err);
@@ -56,7 +92,11 @@ export default function Projects() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getEscrowContractReadOnly]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   // 过滤项目
   const filteredProjects = projects.filter(project => {
